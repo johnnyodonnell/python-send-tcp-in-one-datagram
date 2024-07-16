@@ -83,7 +83,6 @@ def send_one(dst_addr, dst_port, payload):
     # Send data
     flags = TCP_Flags()
     flags.set_ack_flag(True)
-    flags.set_psh_flag(True)
     req_segment = TCP_Segment(
             src_port, dst_port, seq_num, ack_num, flags, payload)
     sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
