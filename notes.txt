@@ -9,6 +9,7 @@
     - https://stackoverflow.com/q/33741002/5832619
     - https://stackoverflow.com/a/48894210/5832619
 	* Probably the best solution
+    - https://stackoverflow.com/a/1327794/5832619
 
 * Command to get network interface used by ip address
     - https://serverfault.com/a/644936/454217

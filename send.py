@@ -1,130 +1,111 @@
 import socket
-import struct
+
+from lib.disable_auto_rst import disable
+from lib.IP_Datagram import IP_Datagram
+from lib.TCP_Segment import TCP_Segment
+from lib.TCP_Flags import TCP_Flags
 
 
 
-fin_flag = 1
-syn_flag = 1 << 1
-rst_flag = 1 << 2
-ack_flag = 1 << 4
+def get_response(sock, dst_port):
+    while True:
+        data = sock.recv(1024)
+        ip_datagram = IP_Datagram(data)
+        tcp_segment = ip_datagram.get_tcp_segment()
+        if tcp_segment.get_dst_port() == dst_port:
+            return ip_datagram
 
-def print_byte_string(byte_str):
-    word = ""
-    for byte in byte_str:
-        word += "{:02x}".format(byte)
-        if len(word) == 4:
-            print(word)
-            word = ""
+def establish_connection(
+        sock, src_addr, dst_addr, src_port, dst_port):
+    # Send Syn packet
+    flags = TCP_Flags()
+    flags.set_syn_flag(True)
+    req_segment = TCP_Segment(src_port, dst_port, 0, 0, flags)
+    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
 
-def ip_addr_to_int(addr):
-    return struct.unpack("!L", socket.inet_aton(addr))[0]
+    # Receive Syn-Ack
+    res_dgram = get_response(sock, src_port)
+    res_segment = res_dgram.get_tcp_segment()
+    flags = res_segment.get_flags()
+    if not flags.get_syn_flag():
+        seq_num = res_segment.get_ack_num()
+        ack_num = res_segment.get_seq_num()
+        terminate_connection(
+                sock, src_addr, dst_addr, src_port, dst_port, seq_num, ack_num)
+        return establish_connection(
+                sock, src_addr, dst_addr, src_port, dst_port)
 
-def ip_addr_to_checksum_value(addr):
-    addr_int = ip_addr_to_int(addr)
-    upper_bits = (addr_int & 0xFFFF0000) >> 16
-    lower_bits= (addr_int & 0x0000FFFF)
-    return upper_bits + lower_bits
+    # Send Ack packet
+    flags = TCP_Flags()
+    flags.set_ack_flag(True)
+    seq_num = res_segment.get_ack_num()
+    ack_num = res_segment.get_seq_num() + 1
+    req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
+    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
 
-def generate_tcp_header(
-        src_addr, dst_addr, src_port, dst_port, seq_num, ack_num,
-        data_offset_plus_reserved_bits, flags, window_size, data_len = 0):
-    # Source Address
-    checksum = ip_addr_to_checksum_value(src_addr)
-    # Destination Address
-    checksum += ip_addr_to_checksum_value(dst_addr)
-    # Protocol
-    # https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
-    checksum += 6
-    # Length
-    # TCP header length (in bytes) plus data length
-    checksum += 20 + data_len
-    # Source Port
-    checksum += src_port
-    # Source Port
-    checksum += dst_port
-    # Sequence Number
-    checksum += (seq_num & 0xFFFF0000) >> 16
-    checksum += (seq_num & 0x0000FFFF)
-    # Acknowledge Number
-    checksum += (ack_num & 0xFFFF0000) >> 16
-    checksum += (ack_num & 0x0000FFFF)
-    # Data offset + Reserved bits
-    checksum += data_offset_plus_reserved_bits << 8
-    # Flags
-    checksum += flags
-    # Window Size (max size)
-    checksum += window_size
+    return (seq_num, ack_num)
 
-    upper_checksum_bits = (0xFFFF0000 & checksum) >> 16
-    lower_checksum_bits = (0x0000FFFF & checksum)
-    added_checksum_bits = upper_checksum_bits + lower_checksum_bits
-    checksum = 0xFFFF - added_checksum_bits
+def terminate_connection(
+        sock, src_addr, dst_addr, src_port, dst_port, seq_num, ack_num):
+    # Send Fin packet
+    flags = TCP_Flags()
+    flags.set_fin_flag(True)
+    # For some reason, closing the connection doesn't work without this
+    flags.set_ack_flag(True)
+    req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
+    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
 
-    # Source Port
-    tcp_header = struct.pack(">H", src_port)
-    # Destination Port
-    tcp_header += struct.pack(">H", dst_port)
-    # Sequence Number
-    tcp_header += struct.pack(">I", seq_num)
-    # Acknowledge Number
-    tcp_header += struct.pack(">I", ack_num)
-    # Data offset + Reserved bits
-    tcp_header += struct.pack(">B", data_offset_plus_reserved_bits)
-    # Flags
-    tcp_header += struct.pack(">B", flags)
-    # Window Size (max size)
-    tcp_header += struct.pack(">H", window_size)
-    # Checksum
-    tcp_header += struct.pack(">H", checksum)
-    # Urgent pointer
-    tcp_header += struct.pack(">H", 0)
+    # Receive Fin-Ack
+    res_dgram = get_response(sock, src_port)
+    res_segment = res_dgram.get_tcp_segment()
 
-    return tcp_header
-
+    # Send Ack packet
+    flags = TCP_Flags()
+    flags.set_ack_flag(True)
+    seq_num = res_segment.get_ack_num()
+    ack_num = res_segment.get_seq_num() + 1
+    req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
+    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
 
 def send_one(dst_addr, dst_port, payload):
+    src_port = 55555
+
+    # Needed for preventing OS from resetting TCP connection
+    cleanup = disable(src_port)
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
-
-
-    sock.bind(("0.0.0.0", 12345))
-
     sock.connect((dst_addr, dst_port))
+    (src_addr, _) = sock.getsockname()
 
-    # From https://stackoverflow.com/a/41250854/5832619
-    (src_addr, src_port) = sock.getsockname()
+    (seq_num, ack_num) = establish_connection(
+            sock, src_addr, dst_addr, src_port, dst_port)
 
+    # Send data
+    flags = TCP_Flags()
+    flags.set_ack_flag(True)
+    flags.set_psh_flag(True)
+    req_segment = TCP_Segment(
+            src_port, dst_port, seq_num, ack_num, flags, payload)
+    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
 
-    # Syn packet
-    payload = generate_tcp_header(
-            src_addr, dst_addr, src_port, dst_port, 0, 0, 5 << 4,
-            syn_flag, 65535)
+    # Receive Fin-Ack
+    res_dgram = get_response(sock, src_port)
+    res_segment = res_dgram.get_tcp_segment()
+    seq_num = res_segment.get_ack_num()
+    ack_num = res_segment.get_seq_num()
 
-    sock.send(payload)
-
-    data = sock.recv(1024)
-    print_byte_string(data)
-    print("")
-
-    data = sock.recv(1024)
-    print_byte_string(data)
-    print("")
-
-    data = sock.recv(1024)
-    print_byte_string(data)
-    print("")
-
-    """
-    payload = generate_tcp_header(
-            src_addr, dst_addr, src_port, dst_port, 0, 0, 5 << 4,
-            syn_flag, 65535, len(payload))
-    """
+    terminate_connection(
+            sock, src_addr, dst_addr, src_port, dst_port,
+            seq_num, ack_num)
 
     sock.close()
+    cleanup()
 
     return
 
 
 if __name__ == "__main__":
     print("Sending...")
-    send_one("127.0.0.1", 4444, b"Hello TCP")
+    send_one("127.0.0.1", 4444, b"Hello TCP.\n")
+
 
