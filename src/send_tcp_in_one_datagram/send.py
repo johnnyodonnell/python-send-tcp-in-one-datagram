@@ -10,7 +10,7 @@ from send_tcp_in_one_datagram.lib.TCP_Flags import TCP_Flags
 def get_response(sock, dst_port):
     while True:
         data = sock.recv(1024)
-        ip_datagram = IP_Datagram(data)
+        ip_datagram = IP_Datagram.from_bytes(data)
         tcp_segment = ip_datagram.get_tcp_segment()
         if tcp_segment.get_dst_port() == dst_port:
             return ip_datagram
@@ -21,7 +21,8 @@ def establish_connection(
     flags = TCP_Flags()
     flags.set_syn_flag(True)
     req_segment = TCP_Segment(src_port, dst_port, 0, 0, flags)
-    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
+    req_dgram = IP_Datagram(src_addr, dst_addr, req_segment)
+    sock.sendall(req_dgram.get_bytes())
 
     # Receive Syn-Ack
     res_dgram = get_response(sock, src_port)
@@ -41,7 +42,8 @@ def establish_connection(
     seq_num = res_segment.get_ack_num()
     ack_num = res_segment.get_seq_num() + 1
     req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
-    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
+    req_dgram = IP_Datagram(src_addr, dst_addr, req_segment)
+    sock.sendall(req_dgram.get_bytes())
 
     return (seq_num, ack_num)
 
@@ -57,7 +59,8 @@ def terminate_connection(
     # For some reason, closing the connection doesn't work without this
     flags.set_ack_flag(True)
     req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
-    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
+    req_dgram = IP_Datagram(src_addr, dst_addr, req_segment)
+    sock.sendall(req_dgram.get_bytes())
 
     # Receive Fin-Ack
     res_dgram = get_response(sock, src_port)
@@ -70,7 +73,8 @@ def terminate_connection(
         seq_num = res_segment.get_ack_num()
         ack_num = res_segment.get_seq_num() + 1
         req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
-        sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
+        req_dgram = IP_Datagram(src_addr, dst_addr, req_segment)
+        sock.sendall(req_dgram.get_bytes())
 
 def send_in_one_datagram(dst_addr, dst_port, payload):
     src_port = 55555
@@ -79,6 +83,7 @@ def send_in_one_datagram(dst_addr, dst_port, payload):
     cleanup = disable(src_port)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+    sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
     sock.connect((dst_addr, dst_port))
     (src_addr, _) = sock.getsockname()
 
@@ -91,7 +96,8 @@ def send_in_one_datagram(dst_addr, dst_port, payload):
     flags.set_psh_flag(True)
     req_segment = TCP_Segment(
             src_port, dst_port, seq_num, ack_num, flags, payload)
-    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
+    req_dgram = IP_Datagram(src_addr, dst_addr, req_segment)
+    sock.sendall(req_dgram.get_bytes())
 
     # Receive Fin-Ack
     res_dgram = get_response(sock, src_port)
