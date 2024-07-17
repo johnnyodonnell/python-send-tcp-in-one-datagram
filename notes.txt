@@ -1,4 +1,19 @@
 
+* Sending the entire payload under a single datagram doesn't
+        seem like it will be a viable option.
+    - At first I was getting an OSError:
+        * `OSError: [Errno 90] Message too long`
+        * However, I was able to fix this by increasing the MTU
+                with the following command
+            - `sudo ifconfig tun0 mtu 5000 up`
+            - This fixed the OSError, but I still couldn't get
+                the packet through
+    - Once I solved the OSError issue, I still couldn't get the
+        packet through. I'm assuming the VPN drops packets that
+        are too large.
+    - I need to try sending multiple datagrams but without
+        checking the PSH flag until the end.
+
 * Creating a distributable python package
     - https://packaging.python.org/en/latest/tutorials/packaging-projects/
 
