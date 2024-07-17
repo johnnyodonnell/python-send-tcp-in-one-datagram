@@ -46,8 +46,12 @@ def establish_connection(
     return (seq_num, ack_num)
 
 def terminate_connection(
-        sock, src_addr, dst_addr, src_port, dst_port, seq_num, ack_num):
-    # Send Fin packet
+        sock, src_addr, dst_addr, src_port, dst_port,
+        seq_num, ack_num, fin_ack_received = False):
+    if fin_ack_received:
+        ack_num += 1
+
+    # Send Fin-Ack packet
     flags = TCP_Flags()
     flags.set_fin_flag(True)
     # For some reason, closing the connection doesn't work without this
@@ -59,13 +63,14 @@ def terminate_connection(
     res_dgram = get_response(sock, src_port)
     res_segment = res_dgram.get_tcp_segment()
 
-    # Send Ack packet
-    flags = TCP_Flags()
-    flags.set_ack_flag(True)
-    seq_num = res_segment.get_ack_num()
-    ack_num = res_segment.get_seq_num() + 1
-    req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
-    sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
+    if not fin_ack_received:
+        # Send Ack packet
+        flags = TCP_Flags()
+        flags.set_ack_flag(True)
+        seq_num = res_segment.get_ack_num()
+        ack_num = res_segment.get_seq_num() + 1
+        req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
+        sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
 
 def send_in_one_datagram(dst_addr, dst_port, payload):
     src_port = 55555
@@ -94,9 +99,12 @@ def send_in_one_datagram(dst_addr, dst_port, payload):
     seq_num = res_segment.get_ack_num()
     ack_num = res_segment.get_seq_num()
 
+    send_final_ack = True
+    fin_ack_received = res_segment.get_flags().get_fin_flag()
+
     terminate_connection(
             sock, src_addr, dst_addr, src_port, dst_port,
-            seq_num, ack_num)
+            seq_num, ack_num, fin_ack_received)
 
     sock.close()
     cleanup()
@@ -106,6 +114,7 @@ def send_in_one_datagram(dst_addr, dst_port, payload):
 
 if __name__ == "__main__":
     print("Sending...")
+    # send_in_one_datagram("192.168.241.10", 1234, b"Hello TCP.\n")
     send_in_one_datagram("127.0.0.1", 4444, b"Hello TCP.\n")
 
 
