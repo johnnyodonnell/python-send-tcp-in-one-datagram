@@ -16,6 +16,7 @@ def carry_over(value):
     top_bits = value >> 16
     while top_bits > 0:
         value = (value & 0xFFFF) + top_bits
+        top_bits = value >> 16
     return value
 
 # Received help from:

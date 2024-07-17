@@ -67,7 +67,7 @@ def terminate_connection(
     req_segment = TCP_Segment(src_port, dst_port, seq_num, ack_num, flags)
     sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
 
-def send_one(dst_addr, dst_port, payload):
+def send_in_one_datagram(dst_addr, dst_port, payload):
     src_port = 55555
 
     # Needed for preventing OS from resetting TCP connection
@@ -83,6 +83,7 @@ def send_one(dst_addr, dst_port, payload):
     # Send data
     flags = TCP_Flags()
     flags.set_ack_flag(True)
+    flags.set_psh_flag(True)
     req_segment = TCP_Segment(
             src_port, dst_port, seq_num, ack_num, flags, payload)
     sock.sendall(req_segment.get_bytes(src_addr, dst_addr))
@@ -105,6 +106,6 @@ def send_one(dst_addr, dst_port, payload):
 
 if __name__ == "__main__":
     print("Sending...")
-    send_one("127.0.0.1", 4444, b"Hello TCP.\n")
+    send_in_one_datagram("127.0.0.1", 4444, b"Hello TCP.\n")
 
 
