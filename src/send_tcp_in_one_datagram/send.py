@@ -1,9 +1,9 @@
 import socket
 
-from lib.disable_auto_rst import disable
-from lib.IP_Datagram import IP_Datagram
-from lib.TCP_Segment import TCP_Segment
-from lib.TCP_Flags import TCP_Flags
+from send_tcp_in_one_datagram.lib.disable_auto_rst import disable
+from send_tcp_in_one_datagram.lib.IP_Datagram import IP_Datagram
+from send_tcp_in_one_datagram.lib.TCP_Segment import TCP_Segment
+from send_tcp_in_one_datagram.lib.TCP_Flags import TCP_Flags
 
 
 
@@ -109,11 +109,5 @@ def send_in_one_datagram(dst_addr, dst_port, payload):
     cleanup()
 
     return
-
-
-if __name__ == "__main__":
-    print("Sending...")
-    # send_in_one_datagram("192.168.241.10", 1234, b"Hello TCP.\n")
-    send_in_one_datagram("127.0.0.1", 4444, b"Hello TCP.\n")
 
 

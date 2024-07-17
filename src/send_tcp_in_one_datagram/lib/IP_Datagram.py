@@ -1,4 +1,4 @@
-from lib.TCP_Segment import TCP_Segment
+from send_tcp_in_one_datagram.lib.TCP_Segment import TCP_Segment
 
 
 class IP_Datagram():

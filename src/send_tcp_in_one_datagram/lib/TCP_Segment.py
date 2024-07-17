@@ -1,7 +1,7 @@
 import socket
 import struct
 
-from lib.TCP_Flags import TCP_Flags
+from send_tcp_in_one_datagram.lib.TCP_Flags import TCP_Flags
 
 
 def print_byte_string(byte_str):
