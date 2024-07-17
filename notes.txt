@@ -1,4 +1,7 @@
 
+* Creating a distributable python package
+    - https://packaging.python.org/en/latest/tutorials/packaging-projects/
+
 * `tcpdump` commands
     - `sudo tcpdump --interface lo -nn -X port 4444`
 
