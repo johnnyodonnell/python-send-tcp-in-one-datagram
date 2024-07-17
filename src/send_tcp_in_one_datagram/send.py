@@ -99,7 +99,6 @@ def send_in_one_datagram(dst_addr, dst_port, payload):
     seq_num = res_segment.get_ack_num()
     ack_num = res_segment.get_seq_num()
 
-    send_final_ack = True
     fin_ack_received = res_segment.get_flags().get_fin_flag()
 
     terminate_connection(
